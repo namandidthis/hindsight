@@ -21,7 +21,12 @@ import uuid
 
 import pytest
 from hindsight_client import Hindsight
-from livekit.agents import AgentSession, inference
+from livekit.agents import AgentSession
+
+try:
+    from livekit.agents import inference
+except ImportError:  # LiveKit Inference arrived in a livekit-agents 1.2.x patch release
+    inference = None
 
 from hindsight_livekit import HindsightAgent, HindsightMemory, create_hindsight_tools
 from hindsight_livekit.memory import _MEMORY_MARKER
@@ -31,7 +36,7 @@ from .conftest import FakeLLM, instructions, memory_messages, tool_outputs
 HINDSIGHT_API_URL = os.environ.get("HINDSIGHT_API_URL")
 HAS_LIVEKIT = all(os.environ.get(k) for k in ("LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"))
 # Realtime models were added to LiveKit Inference after livekit-agents 1.2.
-HAS_INFERENCE_REALTIME = hasattr(inference, "RealtimeModel")
+HAS_INFERENCE_REALTIME = inference is not None and hasattr(inference, "RealtimeModel")
 requires_inference_realtime = pytest.mark.skipif(
     not HAS_INFERENCE_REALTIME, reason="this livekit-agents has no LiveKit Inference realtime models"
 )
@@ -159,6 +164,7 @@ class TestHindsightServer:
 
 
 @pytest.mark.skipif(not HAS_LIVEKIT, reason="LiveKit Cloud credentials not set")
+@pytest.mark.skipif(inference is None, reason="this livekit-agents has no LiveKit Inference")
 class TestRealModels:
     async def test_pipeline_llm_remembers_across_calls(self, client: Hindsight, bank_id: str):
         llm = inference.LLM(model="google/gemma-4-31b-it")
