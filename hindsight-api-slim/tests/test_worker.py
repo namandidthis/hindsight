@@ -5773,6 +5773,53 @@ class TestCancelledStatusIsFinal:
         row = await pool.fetchrow("SELECT status FROM async_operations WHERE operation_id = $1", op_id)
         assert row["status"] == "cancelled", "a cancelled operation must not be resurrected by the failure path"
 
+    @pytest.mark.asyncio
+    async def test_task_that_cancels_itself_and_defers_ends_cancelled_and_uncounted(
+        self, pool, backend, clean_operations
+    ):
+        """A hook that decides its operation should not run (using
+        RequestContext.operation_id) can cancel it and raise DeferOperation: the
+        guarded deferral leaves the row cancelled, and since a deferral is not a
+        terminal outcome no completion is recorded, success or failure.
+        """
+        from hindsight_api.worker import WorkerPoller
+        from hindsight_api.worker.exceptions import DeferOperation
+        from hindsight_api.worker.poller import ClaimedTask
+
+        bank_id = f"test-worker-{uuid.uuid4().hex[:8]}"
+        op_id = uuid.uuid4()
+        payload = json.dumps({"type": "batch_retain", "operation_id": str(op_id), "bank_id": bank_id})
+        await _ensure_bank(pool, bank_id)
+        await pool.execute(
+            """
+            INSERT INTO async_operations (operation_id, bank_id, operation_type, status, task_payload, worker_id)
+            VALUES ($1, $2, 'retain', 'processing', $3::jsonb, 'test-worker-1')
+            """,
+            op_id,
+            bank_id,
+            payload,
+        )
+
+        async def cancel_then_defer(task_dict):
+            await pool.execute(
+                "UPDATE async_operations SET status = 'cancelled', error_message = 'not run', updated_at = now() "
+                "WHERE operation_id = $1",
+                op_id,
+            )
+            raise DeferOperation(exec_date=datetime.now(UTC), reason="not run")
+
+        poller = WorkerPoller(backend=backend, worker_id="test-worker-1", executor=cancel_then_defer)
+        collector = MagicMock()
+        with patch("hindsight_api.worker.poller.get_metrics_collector", return_value=collector):
+            await poller._execute_task_inner(
+                ClaimedTask(operation_id=str(op_id), task_dict=json.loads(payload), schema=None)
+            )
+
+        row = await pool.fetchrow("SELECT status, error_message FROM async_operations WHERE operation_id = $1", op_id)
+        assert row["status"] == "cancelled"
+        assert row["error_message"] == "not run"
+        collector.record_operation_result.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_finished_task_wakes_the_idle_poll_at_once():
