@@ -184,6 +184,7 @@ INTEGRATIONS: dict[str, IntegrationMeta] = {
     "zed": IntegrationMeta("hindsight-zed", "Zed"),
     "openhands": IntegrationMeta("hindsight-openhands", "OpenHands"),
     "devin-desktop": IntegrationMeta("hindsight-devin-desktop", "Devin Desktop"),
+    "livekit": IntegrationMeta("hindsight-livekit", "LiveKit"),
 }
 
 VALID_INTEGRATIONS = list(INTEGRATIONS.keys())

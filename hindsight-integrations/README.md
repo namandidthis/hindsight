@@ -42,6 +42,7 @@ Each integration lives in its own subdirectory with its own README, configuratio
 | [**NemoClaw**](./nemoclaw) | One-command setup for NemoClaw sandboxes. |
 | [**Right Agent**](./right-agent) | Native memory provider for Right Agent sandboxes. |
 | [**Pipecat**](./pipecat) | Memory nodes for Pipecat voice pipelines. |
+| [**LiveKit**](./livekit) | Memory for LiveKit Agents voice AI: STT-LLM-TTS pipelines and realtime models. |
 | [**AgentCore**](./agentcore) | Memory tools for AgentCore agents. |
 | [**Smolagents**](./smolagents) | Retain/recall/reflect tools for HuggingFace Smolagents. |
 | [**OpenClaw**](./openclaw) | Memory for OpenClaw workflows. |

@@ -471,6 +471,16 @@
       "icon": "/img/icons/pipecat.svg"
     },
     {
+      "id": "livekit",
+      "name": "LiveKit",
+      "description": "Persistent memory for LiveKit Agents voice AI, for STT-LLM-TTS pipelines and realtime models. Recalls what is known about the caller when the agent starts and before each reply, adds memory tools, and retains each call as it happens.",
+      "type": "official",
+      "by": "hindsight",
+      "category": "tool",
+      "link": "/sdks/integrations/livekit",
+      "icon": "/img/icons/livekit.svg"
+    },
+    {
       "id": "agentcore",
       "name": "Bedrock AgentCore",
       "description": "Persistent memory for Amazon Bedrock AgentCore Runtime agents. Memory survives ephemeral Runtime sessions so agents remember users, decisions, and context across reprovisioning.",
