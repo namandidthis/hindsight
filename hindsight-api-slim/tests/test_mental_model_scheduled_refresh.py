@@ -81,13 +81,11 @@ async def _insert_mm(
     return mm_id
 
 
-async def _insert_fact(conn, bank_id: str, tags: list[str] | None = None) -> None:
-    await conn.execute(
-        "INSERT INTO memory_units (id, bank_id, text, fact_type, tags, created_at, updated_at) "
-        "VALUES ($1, $2, 'a fresh fact', 'experience', $3, now(), now())",
-        uuid.uuid4(),
-        bank_id,
-        tags or [],
+async def _retain_fact(memory: MemoryEngine, bank_id: str, request_context) -> None:
+    """A new memory in the model's scope, written by a real retain so it lands in whichever
+    store holds the bank's memories (and so counts towards staleness there)."""
+    await memory.retain_batch_async(
+        bank_id=bank_id, contents=[{"content": "a fresh fact"}], request_context=request_context
     )
 
 
@@ -216,13 +214,12 @@ async def test_routine_returns_cron_models_excludes_plain_and_in_flight(memory: 
 
 
 @pytest.mark.asyncio
-@pytest.mark.memory_backend_incompatible
 async def test_due_and_stale_model_is_refreshed(memory: MemoryEngine, request_context, monkeypatch):
     """A model whose cron is due and that has new memories in scope is refreshed."""
     bank = await _make_bank(memory, request_context)
     async with memory._pool.acquire() as conn:
         mm_id = await _insert_mm(conn, bank, refresh_cron="*/5 * * * *", last_refreshed_offset="1 day")
-        await _insert_fact(conn, bank)  # newer than last_refreshed_at -> stale
+    await _retain_fact(memory, bank, request_context)  # newer than last_refreshed_at -> stale
 
     submitted = _patch_submit(memory, monkeypatch)
     await MaintenanceLoop(memory)._run_scheduled_mm_refresh()
@@ -231,7 +228,6 @@ async def test_due_and_stale_model_is_refreshed(memory: MemoryEngine, request_co
 
 
 @pytest.mark.asyncio
-@pytest.mark.memory_backend_incompatible
 async def test_scheduled_refresh_is_marked_automatic(memory: MemoryEngine, request_context, monkeypatch):
     """A cron refresh is subject to the minimum-interval floor.
 
@@ -243,7 +239,7 @@ async def test_scheduled_refresh_is_marked_automatic(memory: MemoryEngine, reque
     bank = await _make_bank(memory, request_context)
     async with memory._pool.acquire() as conn:
         mm_id = await _insert_mm(conn, bank, refresh_cron="*/5 * * * *", last_refreshed_offset="1 day")
-        await _insert_fact(conn, bank)
+    await _retain_fact(memory, bank, request_context)
 
     recorded: dict[str, bool] = {}
 
@@ -345,7 +341,7 @@ async def test_not_due_model_is_skipped_even_when_stale(memory: MemoryEngine, re
         # Yearly cron (Jan 1); last refresh seconds ago -> the most recent fire is
         # well before last_refreshed_at, so it is not due.
         mm_id = await _insert_mm(conn, bank, refresh_cron="0 0 1 1 *", last_refreshed_offset="5 seconds")
-        await _insert_fact(conn, bank)  # stale, but cron not due
+    await _retain_fact(memory, bank, request_context)  # stale, but cron not due
 
     submitted = _patch_submit(memory, monkeypatch)
     await MaintenanceLoop(memory)._run_scheduled_mm_refresh()
@@ -364,7 +360,7 @@ async def test_failed_model_is_not_requeued_until_a_refresh_succeeds(
     bank = await _make_bank(memory, request_context)
     async with memory._pool.acquire() as conn:
         mm_id = await _insert_mm(conn, bank, refresh_cron="*/5 * * * *", last_refreshed_offset="1 day")
-        await _insert_fact(conn, bank)
+    await _retain_fact(memory, bank, request_context)
     _stall_worker(memory, monkeypatch)
     await memory._record_mental_model_refresh_failure(
         bank, mm_id, outcome="refresh_failed_error", failure_reason="unexpected_error", error_message="boom"
@@ -410,7 +406,7 @@ async def test_a_temporary_provider_failure_does_not_pause_automatic_refresh(
     bank = await _make_bank(memory, request_context)
     async with memory._pool.acquire() as conn:
         mm_id = await _insert_mm(conn, bank, refresh_cron="*/5 * * * *", last_refreshed_offset="1 day")
-        await _insert_fact(conn, bank)
+    await _retain_fact(memory, bank, request_context)
 
     async def _fail(**kwargs):
         raise error
@@ -469,7 +465,7 @@ async def test_refresh_cut_off_during_a_retry_backoff_does_not_pause(
     bank = await _make_bank(memory, request_context)
     async with memory._pool.acquire() as conn:
         mm_id = await _insert_mm(conn, bank, refresh_cron="*/5 * * * *", last_refreshed_offset="1 day")
-        await _insert_fact(conn, bank)
+    await _retain_fact(memory, bank, request_context)
 
     await memory.on_task_wall_timeout(
         {"type": "refresh_mental_model", "bank_id": bank, "mental_model_id": mm_id},
@@ -628,7 +624,7 @@ async def test_when_both_schedules_are_due_the_full_refresh_wins(memory: MemoryE
             full_refresh_cron="*/5 * * * *",
             last_full_refreshed_offset="1 day",
         )
-        await _insert_fact(conn, bank)
+    await _retain_fact(memory, bank, request_context)
 
     modes: dict[str, str | None] = {}
     submitted = _patch_submit(memory, monkeypatch, modes)
