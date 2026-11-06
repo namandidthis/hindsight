@@ -699,6 +699,16 @@
       "category": "tool",
       "link": "https://github.com/Nyrest/hindsight-ingestion",
       "icon": "/img/icons/hindsight-ingestion.svg"
+    },
+    {
+      "id": "livekit",
+      "name": "LiveKit",
+      "description": "Persistent memory for LiveKit Agents voice AI, for STT-LLM-TTS pipelines and realtime models. Recalls what is known about the caller at the start of each call, adds memory tools, and retains each call as it happens.",
+      "type": "community",
+      "by": "namandidthis",
+      "category": "tool",
+      "link": "https://github.com/namandidthis/hindsight-livekit",
+      "icon": "/img/icons/livekit.svg"
     }
   ]
 }
